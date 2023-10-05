@@ -40,10 +40,10 @@ class TestLineWordWrap(unittest.TestCase):
     def test_few_long_words(self):
         # We should wrap a line where the second word is overlong.
         self.n._line(' '.join(['x', LONGWORD, 'y']))
-        self.assertEqual(' $\n'.join(['x',
-                                      INDENT + LONGWORD,
-                                      INDENT + 'y']) + '\n',
-                         self.out.getvalue())
+        self.assertEqual(
+            (' $\n'.join(['x', INDENT + LONGWORD, f'{INDENT}y']) + '\n'),
+            self.out.getvalue(),
+        )
 
     def test_comment_wrap(self):
         # Filenames should not be wrapped
@@ -66,17 +66,20 @@ line_one $
     def test_few_long_words_indented(self):
         # Check wrapping in the presence of indenting.
         self.n._line(' '.join(['x', LONGWORD, 'y']), indent=1)
-        self.assertEqual(' $\n'.join(['  ' + 'x',
-                                      '  ' + INDENT + LONGWORD,
-                                      '  ' + INDENT + 'y']) + '\n',
-                         self.out.getvalue())
+        self.assertEqual(
+            (
+                ' $\n'.join(['  ' + 'x', f'  {INDENT}{LONGWORD}', f'  {INDENT}y'])
+                + '\n'
+            ),
+            self.out.getvalue(),
+        )
 
     def test_escaped_spaces(self):
         self.n._line(' '.join(['x', LONGWORDWITHSPACES, 'y']))
-        self.assertEqual(' $\n'.join(['x',
-                                      INDENT + LONGWORDWITHSPACES,
-                                      INDENT + 'y']) + '\n',
-                         self.out.getvalue())
+        self.assertEqual(
+            (' $\n'.join(['x', INDENT + LONGWORDWITHSPACES, f'{INDENT}y']) + '\n'),
+            self.out.getvalue(),
+        )
 
     def test_fit_many_words(self):
         self.n = ninja_syntax.Writer(self.out, width=78)

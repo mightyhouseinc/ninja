@@ -15,12 +15,12 @@ error_count = 0
 def error(path, msg):
 	global error_count
 	error_count += 1
-	print('\x1b[1;31m{}\x1b[0;31m{}\x1b[0m'.format(path, msg))
+	print(f'\x1b[1;31m{path}\x1b[0;31m{msg}\x1b[0m')
 
 for root, directory, filenames in os.walk('.'):
 	for filename in filenames:
 		path = os.path.join(root, filename)[2:]
-		if any([path.startswith(x) for x in ignores]):
+		if any(path.startswith(x) for x in ignores):
 			continue
 		with open(path, 'rb') as file:
 			line_nr = 1
@@ -32,8 +32,8 @@ for root, directory, filenames in os.walk('.'):
 						if line[-2] == '\r':
 							error(path, ' has Windows line endings.')
 							break
-						if line[-2] == ' ' or line[-2] == '\t':
-							error(path, ':{} has trailing whitespace.'.format(line_nr))
+						if line[-2] in [' ', '\t']:
+							error(path, f':{line_nr} has trailing whitespace.')
 					line_nr += 1
 			except UnicodeError:
 				pass # binary file

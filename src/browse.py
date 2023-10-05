@@ -58,9 +58,7 @@ Node = namedtuple('Node', ['inputs', 'rule', 'target', 'outputs'])
 # of an edge.  But I think it's less confusing than alternatives.
 
 def match_strip(line, prefix):
-    if not line.startswith(prefix):
-        return (False, line)
-    return (True, line[len(prefix):])
+    return (True, line[len(prefix):]) if line.startswith(prefix) else (False, line)
 
 def html_escape(text):
     return escape(text, quote=True)
@@ -131,27 +129,29 @@ tt {
 ''' + body
 
 def generate_html(node):
-    document = ['<h1><tt>%s</tt></h1>' % html_escape(node.target)]
+    document = [f'<h1><tt>{html_escape(node.target)}</tt></h1>']
 
     if node.inputs:
-        document.append('<h2>target is built using rule <tt>%s</tt> of</h2>' %
-                        html_escape(node.rule))
+        document.append(
+            f'<h2>target is built using rule <tt>{html_escape(node.rule)}</tt> of</h2>'
+        )
         if len(node.inputs) > 0:
             document.append('<div class=filelist>')
             for input, type in sorted(node.inputs):
                 extra = ''
                 if type:
-                    extra = ' (%s)' % html_escape(type)
-                document.append('<tt><a href="?%s">%s</a>%s</tt><br>' %
-                                (html_escape(input), html_escape(input), extra))
+                    extra = f' ({html_escape(type)})'
+                document.append(
+                    f'<tt><a href="?{html_escape(input)}">{html_escape(input)}</a>{extra}</tt><br>'
+                )
             document.append('</div>')
 
     if node.outputs:
-        document.append('<h2>dependent edges build:</h2>')
-        document.append('<div class=filelist>')
-        for output in sorted(node.outputs):
-            document.append('<tt><a href="?%s">%s</a></tt><br>' %
-                            (html_escape(output), html_escape(output)))
+        document.extend(('<h2>dependent edges build:</h2>', '<div class=filelist>'))
+        document.extend(
+            f'<tt><a href="?{html_escape(output)}">{html_escape(output)}</a></tt><br>'
+            for output in sorted(node.outputs)
+        )
         document.append('</div>')
 
     return '\n'.join(document)
@@ -169,7 +169,7 @@ class RequestHandler(httpserver.BaseHTTPRequestHandler):
 
         if target == '':
             self.send_response(302)
-            self.send_header('Location', '?' + args.initial_target)
+            self.send_header('Location', f'?{args.initial_target}')
             self.end_headers()
             return
 
@@ -184,7 +184,7 @@ class RequestHandler(httpserver.BaseHTTPRequestHandler):
             page_body = generate_html(parse(ninja_output.strip()))
         else:
             # Relay ninja's error message.
-            page_body = '<h1><tt>%s</tt></h1>' % html_escape(ninja_error)
+            page_body = f'<h1><tt>{html_escape(ninja_error)}</tt></h1>'
 
         self.send_response(200)
         self.end_headers()
@@ -222,10 +222,9 @@ try:
     print('Web server running on %s:%d, ctl-C to abort...' % (hostname,port) )
     print('Web server pid %d' % os.getpid(), file=sys.stderr )
     if not args.no_browser:
-        webbrowser.open_new('http://%s:%s' % (hostname, port) )
+        webbrowser.open_new(f'http://{hostname}:{port}')
     httpd.serve_forever()
 except KeyboardInterrupt:
     print()
-    pass  # Swallow console spam.
 
 

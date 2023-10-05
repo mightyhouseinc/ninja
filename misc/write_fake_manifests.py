@@ -51,8 +51,8 @@ def moar(avg_options, p_suffix):
 
 class GenRandom(object):
     def __init__(self, src_dir):
-        self.seen_names = set([None])
-        self.seen_defines = set([None])
+        self.seen_names = {None}
+        self.seen_defines = {None}
         self.src_dir = src_dir
 
     def _unique_string(self, seen, avg_options=1.3, p_suffix=0.1):
@@ -63,7 +63,7 @@ class GenRandom(object):
         return s
 
     def _n_unique_strings(self, n):
-        seen = set([None])
+        seen = {None}
         return [self._unique_string(seen, avg_options=3, p_suffix=0.4)
                 for _ in range(n)]
 
@@ -77,14 +77,19 @@ class GenRandom(object):
 
     def src_obj_pairs(self, path, name):
         num_sources = paretoint(55, alpha=2) + 1
-        return [(os.path.join(self.src_dir, path, s + '.cc'),
-                 os.path.join('obj', path, '%s.%s.o' % (name, s)))
-                for s in self._n_unique_strings(num_sources)]
+        return [
+            (
+                os.path.join(self.src_dir, path, f'{s}.cc'),
+                os.path.join('obj', path, f'{name}.{s}.o'),
+            )
+            for s in self._n_unique_strings(num_sources)
+        ]
 
     def defines(self):
         return [
-            '-DENABLE_' + self._unique_string(self.seen_defines).upper()
-            for _ in range(paretoint(20, alpha=3))]
+            f'-DENABLE_{self._unique_string(self.seen_defines).upper()}'
+            for _ in range(paretoint(20, alpha=3))
+        ]
 
 
 LIB, EXE = 0, 1
@@ -92,11 +97,10 @@ class Target(object):
     def __init__(self, gen, kind):
         self.name = gen.target_name()
         self.dir_path = gen.path()
-        self.ninja_file_path = os.path.join(
-            'obj', self.dir_path, self.name + '.ninja')
+        self.ninja_file_path = os.path.join('obj', self.dir_path, f'{self.name}.ninja')
         self.src_obj_pairs = gen.src_obj_pairs(self.dir_path, self.name)
         if kind == LIB:
-            self.output = os.path.join('lib' + self.name + '.a')
+            self.output = os.path.join(f'lib{self.name}.a')
         elif kind == EXE:
             self.output = os.path.join(self.name)
         self.defines = gen.defines()
@@ -108,13 +112,12 @@ class Target(object):
 def write_target_ninja(ninja, target, src_dir):
     compile_depends = None
     if target.has_compile_depends:
-      compile_depends = os.path.join(
-          'obj', target.dir_path, target.name + '.stamp')
-      ninja.build(compile_depends, 'stamp', target.src_obj_pairs[0][0])
-      ninja.newline()
+        compile_depends = os.path.join('obj', target.dir_path, f'{target.name}.stamp')
+        ninja.build(compile_depends, 'stamp', target.src_obj_pairs[0][0])
+        ninja.newline()
 
     ninja.variable('defines', target.defines)
-    ninja.variable('includes', '-I' + src_dir)
+    ninja.variable('includes', f'-I{src_dir}')
     ninja.variable('cflags', ['-Wall', '-fno-rtti', '-fno-exceptions'])
     ninja.newline()
 
@@ -140,26 +143,22 @@ def write_sources(target, root_dir):
 
     # Include siblings.
     for cc_filename, _ in target.src_obj_pairs:
-        h_filename = os.path.basename(os.path.splitext(cc_filename)[0] + '.h')
+        h_filename = os.path.basename(f'{os.path.splitext(cc_filename)[0]}.h')
         includes.append(h_filename)
 
     # Include deps.
     for dep in target.deps:
         for cc_filename, _ in dep.src_obj_pairs:
-            h_filename = os.path.basename(
-                os.path.splitext(cc_filename)[0] + '.h')
-            includes.append("%s/%s" % (dep.dir_path, h_filename))
+            h_filename = os.path.basename(f'{os.path.splitext(cc_filename)[0]}.h')
+            includes.append(f"{dep.dir_path}/{h_filename}")
 
     for cc_filename, _ in target.src_obj_pairs:
         cc_path = os.path.join(root_dir, cc_filename)
-        h_path = os.path.splitext(cc_path)[0] + '.h'
+        h_path = f'{os.path.splitext(cc_path)[0]}.h'
         namespace = os.path.basename(target.dir_path)
         class_ = os.path.splitext(os.path.basename(cc_filename))[0]
-        try:
+        with contextlib.suppress(OSError):
             os.makedirs(os.path.dirname(cc_path))
-        except OSError:
-            pass
-
         with open(h_path, 'w') as f:
             f.write('namespace %s { struct %s { %s(); }; }' % (namespace,
                                                                class_, class_))
@@ -214,26 +213,23 @@ def write_master_ninja(master_ninja, targets):
 @contextlib.contextmanager
 def FileWriter(path):
     """Context manager for a ninja_syntax object writing to a file."""
-    try:
+    with contextlib.suppress(OSError):
         os.makedirs(os.path.dirname(path))
-    except OSError:
-        pass
-    f = open(path, 'w')
-    yield ninja_syntax.Writer(f)
-    f.close()
+    with open(path, 'w') as f:
+        yield ninja_syntax.Writer(f)
 
 
 def random_targets(num_targets, src_dir):
     gen = GenRandom(src_dir)
 
     # N-1 static libraries, and 1 executable depending on all of them.
-    targets = [Target(gen, LIB) for i in range(num_targets - 1)]
+    targets = [Target(gen, LIB) for _ in range(num_targets - 1)]
     for i in range(len(targets)):
-        targets[i].deps = [t for t in targets[0:i] if random.random() < 0.05]
+        targets[i].deps = [t for t in targets[:i] if random.random() < 0.05]
 
     last_target = Target(gen, EXE)
     last_target.deps = targets[:]
-    last_target.src_obj_pairs = last_target.src_obj_pairs[0:10]  # Trim.
+    last_target.src_obj_pairs = last_target.src_obj_pairs[:10]
     targets.append(last_target)
     return targets
 

@@ -26,7 +26,7 @@ def run(build_ninja, flags='', pipe=False, env=default_env):
         with open('build.ninja', 'w') as f:
             f.write(build_ninja)
             f.flush()
-        ninja_cmd = '{} {}'.format(NINJA_PATH, flags)
+        ninja_cmd = f'{NINJA_PATH} {flags}'
         try:
             if pipe:
                 output = subprocess.check_output([ninja_cmd], shell=True, env=env)
@@ -39,12 +39,11 @@ def run(build_ninja, flags='', pipe=False, env=default_env):
         except subprocess.CalledProcessError as err:
             sys.stdout.buffer.write(err.output)
             raise err
-    final_output = ''
-    for line in output.decode('utf-8').splitlines(True):
-        if len(line) > 0 and line[-1] == '\r':
-            continue
-        final_output += line.replace('\r', '')
-    return final_output
+    return ''.join(
+        line.replace('\r', '')
+        for line in output.decode('utf-8').splitlines(True)
+        if len(line) <= 0 or line[-1] != '\r'
+    )
 
 @unittest.skipIf(platform.system() == 'Windows', 'These test methods do not work on Windows')
 class Output(unittest.TestCase):
